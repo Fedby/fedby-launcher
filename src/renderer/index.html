@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fedby 启动器</title>
+  <link rel="stylesheet" href="styles/base.css">
+  <link rel="stylesheet" href="styles/layout.css">
+  <link rel="stylesheet" href="styles/pages.css">
+</head>
+<body>
+  <div class="app">
+    <header class="titlebar">
+      <div class="brand">
+        <span class="brand-mark">F</span>
+        <span class="brand-text">Fedby<em>启动器</em></span>
+      </div>
+      <div class="titlebar-center" id="page-title">启动</div>
+      <button class="account-chip" id="account-chip" title="账户管理">
+        <span class="account-chip-avatar" id="account-chip-avatar">?</span>
+        <span class="account-chip-name" id="account-chip-name">未登录</span>
+      </button>
+      <div class="window-controls">
+        <button class="wc-btn" id="btn-min" title="最小化" aria-label="最小化">
+          <svg viewBox="0 0 12 12"><path d="M2 6h8" /></svg>
+        </button>
+        <button class="wc-btn" id="btn-max" title="最大化" aria-label="最大化">
+          <svg viewBox="0 0 12 12"><rect x="2.4" y="2.4" width="7.2" height="7.2" rx="1" /></svg>
+        </button>
+        <button class="wc-btn close" id="btn-close" title="关闭" aria-label="关闭">
+          <svg viewBox="0 0 12 12"><path d="M3 3l6 6M9 3l-6 6" /></svg>
+        </button>
+      </div>
+    </header>
+
+    <nav class="nav" id="nav"></nav>
+
+    <main class="view" id="view"></main>
+  </div>
+
+  <div id="modal-root"></div>
+  <div id="toast-root"></div>
+
+  <script type="module" src="main.js"></script>
+</body>
+</html>

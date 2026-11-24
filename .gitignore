@@ -1,0 +1,13 @@
+# 依赖与打包产物
+node_modules/
+dist/
+
+# 运行时与临时文件
+*.log
+npm-debug.log*
+
+# 开发过程中的截图与备份（不入库）
+new-*.png
+packaged-running.png
+icon-check.png
+src-legacy-backup.zip

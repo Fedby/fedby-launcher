@@ -1,0 +1,60 @@
+{
+  "name": "fedby-launcher",
+  "version": "1.0.0",
+  "description": "Fedby 启动器 - 功能完整的 Minecraft Java 版启动器",
+  "main": "src/main/index.js",
+  "author": "Fedby",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "icon": "node tools/make-icon.js",
+    "dist": "electron-builder --win --x64",
+    "dist:portable": "electron-builder --win portable --x64"
+  },
+  "build": {
+    "appId": "com.fedby.launcher",
+    "productName": "FedbyLauncher",
+    "copyright": "Copyright © 2026 Fedby",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "package.json",
+      "!**/*.map"
+    ],
+    "asar": true,
+    "compression": "normal",
+    "win": {
+      "icon": "build/icon.png",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Fedby 启动器",
+      "artifactName": "FedbyLauncher-Setup-${version}.${ext}",
+      "deleteAppDataOnUninstall": false
+    },
+    "portable": {
+      "artifactName": "FedbyLauncher-Portable-${version}.${ext}"
+    }
+  },
+  "devDependencies": {
+    "electron": "^38.1.2",
+    "electron-builder": "^26.18.0"
+  }
+}
