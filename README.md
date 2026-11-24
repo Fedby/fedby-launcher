@@ -71,8 +71,8 @@ Fedby 启动器用 Electron + Node.js 写成，只做一件事：让你少折腾
 
 | 版本 | 适合谁 | 说明 |
 |---|---|---|
-| `FedbyLauncher-Portable-1.0.0.exe` | 想直接用 | 单文件免安装，双击即运行，可放 U 盘带走 |
-| `FedbyLauncher-Setup-1.0.0.exe` | 想长期用 | 安装版，可自选目录，自动创建桌面与开始菜单快捷方式 |
+| `FedbyLauncher-Portable-1.1.0.exe` | 想直接用 | 单文件免安装，双击即运行，可放 U 盘带走 |
+| `FedbyLauncher-Setup-1.1.0.exe` | 想长期用 | 安装版，可自选目录，自动创建桌面与开始菜单快捷方式 |
 
 **系统要求**：Windows 10 / 11（64 位）。启动器本体约 300 MB，装游戏本体另需约 800 MB。
 
@@ -178,12 +178,12 @@ src/renderer/        原生 ES Module：router store shell lib components pages 
 | `test-java-launch.js` | 用下载来的 Temurin 真实启动 26.3，验证运行时可用 |
 | `test-packaged.js` | 运行 `dist/` 里的打包产物，验证 asar 与协议（可用 `EXE=` 指定便携版） |
 
-v1.0.0 的实测结果：
+v1.1.0 的实测结果：
 
 - 服务层 17 项全通过：26.3 的 114 个库、classpath 74 项零缺失、Java 25 自动匹配、命令 36 个参数无残留占位符、Modrinth 与 CurseForge 搜索均正常、译名为「机械动力 / JEI 物品管理器」
 - 界面四页零控制台错误，推荐区 12 张卡、搜索「找到 3.6K 个项目」、安装弹窗默认匹配当前版本
 - 端到端启动：离线账户真实进入主菜单（日志出现 `Backend library` / `OpenAL initialized`）
-- 打包产物：`win-unpacked` 与便携版均实测启动，`fedby://` 协议在 asar 内读取正常，`app:info` 返回 1.0.0
+- 打包产物：`win-unpacked` 与便携版均实测启动，`fedby://` 协议在 asar 内读取正常，`app:info` 返回 1.1.0
 
 Java 自动下载的实测结果：
 
