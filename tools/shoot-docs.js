@@ -81,6 +81,6 @@ const getJson = url => new Promise((resolve, reject) => {
   })()`);
 
   ws.close();
-  child.kill();
+  try { require('child_process').execSync('taskkill /PID ' + child.pid + ' /T /F', { stdio: 'ignore' }); } catch (_) {}
   setTimeout(() => process.exit(0), 400);
 })().catch(error => { console.error('截图失败:', error.message); process.exit(1); });

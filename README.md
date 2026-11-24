@@ -32,6 +32,8 @@ Fedby 启动器用 Electron + Node.js 写成，只做一件事：让你少折腾
 - 版本、Java、内存一屏看完，启动按钮常驻底部
 - 实时日志滚动输出，出错能直接看到原因
 - 自动选择 Java（按版本的 `javaVersion` 要求取「够用的最低版本」）、自动分配内存（物理内存 1/4，限制 2~8 GB），两者都能关
+- **缺 Java 自动补**：本机没有版本要求的 Java（比如 26.x 要 Java 25）时，启动器直接下 Adoptium Temurin，装到自己的目录里，不碰系统环境；下完自动接管，下次直接用
+- 装完版本也会顺手把对应的 Java 后台备好，进度在状态栏滚动显示
 
 **版本管理**
 
@@ -57,7 +59,8 @@ Fedby 启动器用 Electron + Node.js 写成，只做一件事：让你少折腾
 **设置**
 
 - 8 种主题色 + 自定义取色，改完立刻生效
-- Java 运行时扫描与手动指定，内存与分辨率、全屏、额外 JVM 参数与游戏参数
+- Java 运行时扫描、手动指定、一键下载对应版本（含删除已下载的运行时）
+- 内存与分辨率、全屏、额外 JVM 参数与游戏参数
 - 下载并发数、社区中文数据开关、CurseForge API Key、数据目录直达
 
 ![设置](docs/screenshot-settings.png)
@@ -109,6 +112,7 @@ npm run dist:portable   # 只出便携版
 config.json        全局配置
 accounts.json      账户列表
 minecraft/         游戏目录（versions / libraries / assets）
+runtimes/          启动器自己下载的 Java（temurin-25 等）
 skins/             从皮肤站同步的皮肤贴图
 backups/           存档备份
 ```
@@ -118,7 +122,7 @@ backups/           存档备份
 ## 常见问题
 
 **启动时提示找不到 Java？**
-到「设置 → Java 运行时」点「扫描」，或手动指定 `java.exe`。26.x 需要 Java 25，21.x 需要 Java 21，启动器会按版本要求自动选。
+开着「自动选择 Java」就不用管：26.x 需要 Java 25、21.x 需要 Java 21，缺哪个启动器会自己下（Adoptium Temurin，约 60 MB，优先走清华镜像，装到 `%APPDATA%\FedbyLauncher\runtimes`，不动系统环境）。关掉自动选择的话，到「设置 → Java 运行时」点「扫描」或手动指定 `java.exe`。
 
 **提示「未知发布者」？**
 安装包没有买代码签名证书，Windows 会拦一下。点「更多信息 → 仍要运行」即可。介意的可以自己 `npm run dist` 打包。
@@ -142,6 +146,7 @@ src/main/            Electron 主进程
   bridge.js          全部 IPC 注册（只做路由与错误包装）
   services/          paths settings net versions java runtime launch
                      content accounts microsoft yggdrasil i18n
+                     javadl unzip
                      providers/{modrinth,curseforge,installer}
 src/preload.js       contextBridge 暴露 window.fedby
 src/renderer/        原生 ES Module：router store shell lib components pages styles
@@ -154,6 +159,7 @@ src/renderer/        原生 ES Module：router store shell lib components pages 
 - **26.x 的新式原生库**：natives 是带 classifier 后缀的独立 library 条目，靠 `rules` 按平台筛完全部进 classpath，不是老的 `natives` 嵌套结构。
 - **微软登录用授权码流程**，不是设备码。`/devicecode` 要求每个启动器自有且经 Mojang 审批的 Azure 应用，公开的 client id 在 consumers 租户已不存在，拿不到验证码。
 - **中文名不机翻**，走「人工词库 → MC百科 → 麦块」，宁缺毋滥。
+- **Java 运行时自己管**：按版本 `javaVersion.majorVersion` 判定缺哪个主版本，调 Adoptium API 取 Temurin JRE，SHA256 校验后解压到 `runtimes/`；下载走清华镜像、失败回落 GitHub。解压是手写的 ZIP 解析（store + deflate），不引第三方解压库。
 
 <details>
 <summary>开发与验证记录</summary>
@@ -167,6 +173,9 @@ src/renderer/        原生 ES Module：router store shell lib components pages 
 | `test-flow.js` | 下载页推荐与搜索、安装弹窗筛选、版本检查五个标签 |
 | `test-mslogin.js` | 微软登录弹窗、真实授权页、回调拦截与错误提示 |
 | `test-launch2.js` | 离线账户真实启动 26.3 至主菜单，随后停止并清理 |
+| `test-javadl.js` | 真实下载 Java 25：镜像 + SHA256 + 解压 382 个文件 + 探测版本（约 6 秒） |
+| `test-java-ui.js` | 设置页「下载 Java」按钮、进度条、运行时徽章与删除 |
+| `test-java-launch.js` | 用下载来的 Temurin 真实启动 26.3，验证运行时可用 |
 | `test-packaged.js` | 运行 `dist/` 里的打包产物，验证 asar 与协议（可用 `EXE=` 指定便携版） |
 
 v1.0.0 的实测结果：
@@ -175,6 +184,14 @@ v1.0.0 的实测结果：
 - 界面四页零控制台错误，推荐区 12 张卡、搜索「找到 3.6K 个项目」、安装弹窗默认匹配当前版本
 - 端到端启动：离线账户真实进入主菜单（日志出现 `Backend library` / `OpenAL initialized`）
 - 打包产物：`win-unpacked` 与便携版均实测启动，`fedby://` 协议在 asar 内读取正常，`app:info` 返回 1.0.0
+
+Java 自动下载的实测结果：
+
+- 清华镜像 206 命中，58.6 MB 包 6 秒下完，SHA256 与 Adoptium 公布值一致
+- 解压 382 个文件、179 MB，`java -version` 为 `25.0.5.1`，被扫描识别为 `Java 25 (Eclipse Temurin)`
+- 界面：进度条 12～27 次采样连续可见，完成后徽章变「启动器下载」，二次调用直接复用（不重复下载）
+- 索引文件被清空时能按 `runtimes/temurin-*` 目录自愈重建
+- 用这个运行时启动 26.3：68 行日志、进入主菜单、零控制台错误
 
 </details>
 

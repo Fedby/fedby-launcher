@@ -3,7 +3,7 @@ import { $, esc } from '../lib/dom.js';
 import { call } from '../lib/ipc.js';
 import { icon } from '../lib/icons.js';
 import { pageHead, toast, toastOk, toastErr, confirm, busy, setStatus, empty } from '../lib/ui.js';
-import { state, saveSettings, loadRecommendRuntime, reportError } from '../store.js';
+import { state, saveSettings, loadRecommendRuntime, refreshJava, reportError } from '../store.js';
 import { rerender } from '../router.js';
 import { PRESET_COLORS, applyTheme } from '../lib/theme.js';
 
@@ -20,10 +20,14 @@ function render(state) {
       <div class="stack">
         <div class="card">
           <div class="card-head">${icon('shield', 15)} 智能启动</div>
-          <label class="checkbox"><input type="checkbox" id="set-auto-java"${autoJava ? ' checked' : ''}> 自动选择 Java（按版本要求挑最合适的已安装版本）</label>
+          <label class="checkbox"><input type="checkbox" id="set-auto-java"${autoJava ? ' checked' : ''}> 自动选择 Java（按版本要求挑；本机没有就自动下载）</label>
           <label class="checkbox" style="margin-top:10px"><input type="checkbox" id="set-auto-memory"${autoMemory ? ' checked' : ''}> 自动分配内存（物理内存的 1/4，限制 2~8 GB）</label>
           <div class="hint-box" style="margin-top:10px">
-            当前推荐：需要 Java ${esc(state.auto.requiredJava || 17)} · 使用 ${esc(state.auto.javaDisplay || '扫描中…')} · 分配 ${state.auto.memoryMB || config.memoryMB || 4096} MB
+            当前推荐：需要 Java ${esc(state.auto.requiredJava || 17)} ·
+            ${state.auto.satisfied
+              ? `使用 ${esc(state.auto.javaDisplay || '扫描中…')}`
+              : '<b>本机缺少该版本，启动时将自动下载</b>'} ·
+            分配 ${state.auto.memoryMB || config.memoryMB || 4096} MB
             （共 ${state.appInfo.totalMemMB || state.auto.totalMemMB || '-'} MB 物理内存）
           </div>
         </div>
@@ -46,16 +50,31 @@ function render(state) {
             <button class="btn sm ghost" id="rescan-java">${icon('refresh', 13)} 重新扫描</button>
           </div>
           <div class="java-list" id="java-list">
-            ${state.java.length ? state.java.map(java => `
-              <button class="java-item${java.path === state.selection.javaPath ? ' active' : ''}" data-java="${esc(java.path)}">
+            ${state.java.length ? state.java.map(java => {
+              const owned = state.runtimes.some(item => item.path === java.path);
+              return `
+              <div class="java-item${java.path === state.selection.javaPath ? ' active' : ''}" data-java="${esc(java.path)}">
                 <span class="java-mark">${icon('coffee', 15)}</span>
                 <span class="java-main">
                   <span class="java-title">Java ${java.major} <span class="badge">${esc(java.vendor)}</span>
                     ${java.major >= 25 ? '<span class="badge green">支持 26.x</span>' : ''}
+                    ${owned ? '<span class="badge green">启动器下载</span>' : ''}
                   </span>
                   <span class="java-path mono">${esc(java.path)}</span>
                 </span>
-              </button>`).join('') : `<div class="muted" style="font-size:11.5px">没有扫描到 Java，可手动浏览选择 javaw.exe</div>`}
+                ${owned ? `<button class="btn sm ghost" data-remove-runtime="${java.major}" title="删除这个运行时">${icon('trash', 13)}</button>` : ''}
+              </div>`;
+            }).join('') : `<div class="muted" style="font-size:11.5px">没有扫描到 Java，可手动浏览选择 javaw.exe</div>`}
+          </div>
+          <div class="row" style="margin-top:12px;gap:8px">
+            <button class="btn sm" id="download-java" style="flex:0 0 auto;white-space:nowrap">${icon('download', 13)} 下载 Java ${state.auto.requiredJava || 17}</button>
+          </div>
+          <div class="muted" style="margin-top:7px;font-size:10.5px;line-height:1.6">
+            本机缺这个版本时，启动游戏也会自动下载（Adoptium Temurin，约 60 MB，装到数据目录的 runtimes 下，不动系统环境）
+          </div>
+          <div class="install-progress" id="java-dl" style="${state.javaDl.active ? '' : 'display:none'}">
+            <div class="progress"><span id="java-dl-fill" style="width:${state.javaDl.percent || 0}%"></span></div>
+            <div class="install-progress-text"><span id="java-dl-text">${esc(state.javaDl.message || '')}</span><b id="java-dl-percent">${state.javaDl.percent || 0}%</b></div>
           </div>
           <div class="field" style="margin-top:10px">
             <label>Java 可执行文件</label>
@@ -181,11 +200,50 @@ async function mount(root) {
     setStatus('扫描 Java…', true);
     try {
       state.java = await call('java.list', true);
+      state.runtimes = await call('java.runtimes');
       await loadRecommendRuntime();
       rerender();
       toastOk(`找到 ${state.java.length} 个 Java`);
     } catch (error) { reportError('扫描失败', error); }
     setStatus('就绪');
+  });
+
+  // 主动下载某个主版本的 Java（缺的时候也可以等启动时自动下载）
+  $('#download-java').addEventListener('click', async () => {
+    const feature = state.auto.requiredJava || 17;
+    const button = $('#download-java');
+    button.disabled = true;
+    state.javaDl = { active: true, feature, phase: 'resolve', percent: 0, message: `正在准备 Java ${feature}…` };
+    rerender();
+    try {
+      await call('java.ensure', feature);
+      await refreshJava();
+      rerender();
+      toastOk(`Java ${feature} 已就绪`);
+    } catch (error) {
+      state.javaDl = { active: false, feature, phase: 'error', percent: 0, message: '' };
+      rerender();
+      reportError('下载 Java 失败', error);
+    }
+  });
+
+  root.querySelectorAll('[data-remove-runtime]').forEach(button => {
+    button.addEventListener('click', async event => {
+      event.stopPropagation(); // 别触发外层的「选用这个 Java」
+      const feature = button.dataset.removeRuntime;
+      const yes = await confirm({
+        title: `删除 Java ${feature}`,
+        message: '会删掉启动器下载的这个运行时目录。系统里安装的 Java 不受影响，之后需要时可以重新下载。',
+        confirmText: '删除',
+      });
+      if (!yes) return;
+      try {
+        await call('java.removeRuntime', feature);
+        await refreshJava();
+        rerender();
+        toastOk(`已删除 Java ${feature}`);
+      } catch (error) { reportError('删除失败', error); }
+    });
   });
 
   $('#open-data').addEventListener('click', () => call('app.openDir', 'data').catch(error => toastErr(error.message)));

@@ -101,14 +101,28 @@ function createWindow() {
   bridge.registerAll(mainWindow);
 }
 
-app.whenReady().then(() => {
-  registerProtocol();
-  session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
-  createWindow();
-});
+// 单实例：同时开两个会抢同一份数据目录（下载 Java、安装版本都会打架）
+const gotLock = app.requestSingleInstanceLock();
 
-app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
-app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
+if (!gotLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (!mainWindow) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  });
+
+  app.whenReady().then(() => {
+    registerProtocol();
+    session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
+    createWindow();
+  });
+
+  app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+  app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
+}
 
 process.on('uncaughtException', error => {
   // 未捕获异常记录后继续运行，避免启动器整体崩掉

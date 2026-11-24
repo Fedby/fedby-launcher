@@ -63,7 +63,7 @@ class CDP {
     await sleep(500);
   }
   const page = targets.find(t => t.type === 'page' && /index\.html/.test(t.url));
-  if (!page) { console.log('FAIL: 主窗口未启动'); child.kill(); process.exit(1); }
+  if (!page) { console.log('FAIL: 主窗口未启动'); try { require('child_process').execSync('taskkill /PID ' + child.pid + ' /T /F', { stdio: 'ignore' }); } catch (_) {} process.exit(1); }
 
   const cdp = await CDP.connect(page.webSocketDebuggerUrl);
   await cdp.send('Runtime.enable');
@@ -145,6 +145,6 @@ class CDP {
   console.log('控制台错误:', cdp.errors.length ? cdp.errors : '无');
 
   cdp.ws.close();
-  child.kill();
+  try { require('child_process').execSync('taskkill /PID ' + child.pid + ' /T /F', { stdio: 'ignore' }); } catch (_) {}
   setTimeout(() => process.exit(0), 300);
 })().catch(e => { console.error('测试脚本异常:', e); process.exit(1); });

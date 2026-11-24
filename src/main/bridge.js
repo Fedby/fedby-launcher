@@ -9,6 +9,7 @@ const settings = require('./services/settings');
 const versions = require('./services/versions');
 const java = require('./services/java');
 const runtime = require('./services/runtime');
+const javadl = require('./services/javadl');
 const accounts = require('./services/accounts');
 const microsoft = require('./services/microsoft');
 const yggdrasil = require('./services/yggdrasil');
@@ -55,6 +56,19 @@ function dirTarget(kind, versionId) {
   const target = map[kind];
   if (!target) throw new Error('未知目录: ' + kind);
   return target;
+}
+
+/**
+ * 确保某个版本需要的 Java 已就位：本机没有就从 Adoptium 下 Temurin。
+ * 安装版本后后台调用，失败不阻塞安装（启动时还会再补一次）。
+ */
+async function prepareJava(versionId) {
+  if (settings.get().autoJava === false) return null;
+  const rec = await runtime.recommend(versionId);
+  if (rec.satisfied) return null;
+  const entry = await javadl.ensure(rec.requiredJava, progress => send('java:progress', progress));
+  await java.scanCached(true);
+  return entry;
 }
 
 function registerAll(window) {
@@ -121,12 +135,25 @@ function registerAll(window) {
   });
   register('versions:install', async id => {
     await versions.install(id, progress => send('versions:installProgress', { id, ...progress }));
+    // 装完顺手把缺少的 Java 下好，不阻塞安装结果
+    prepareJava(id).catch(error => console.warn('[java] 后台准备运行时失败:', error.message));
     return versions.list();
   });
 
   // ---------- Java / 运行时 ----------
   register('java:list', async (force = false) => java.scanCached(!!force));
   register('java:probe', exePath => java.probe(exePath));
+  register('java:runtimes', () => javadl.list());
+  register('java:ensure', async feature => {
+    const entry = await javadl.ensure(feature, progress => send('java:progress', progress));
+    await java.scanCached(true);
+    return { entry, java: java.cached(), runtimes: javadl.list() };
+  });
+  register('java:removeRuntime', async feature => {
+    const runtimes = javadl.remove(feature);
+    await java.scanCached(true);
+    return { runtimes, java: java.cached() };
+  });
   register('runtime:recommend', versionId => runtime.recommend(versionId));
 
   // ---------- 账户 ----------
@@ -167,10 +194,22 @@ function registerAll(window) {
     const autoMemory = options.autoMemory !== false && config.autoMemory !== false;
     if (autoJava || autoMemory) {
       const rec = await runtime.recommend(options.versionId);
-      if (autoJava && rec.javaPath) javaPath = rec.javaPath;
       if (autoMemory && rec.memoryMB) memoryMB = rec.memoryMB;
+      if (autoJava) {
+        if (rec.satisfied) {
+          javaPath = rec.javaPath;
+        } else {
+          // 本机没有满足要求的 Java（例如 26.x 需要 Java 25）：当场下载
+          console.log(`[launch] 缺少 Java ${rec.requiredJava}，开始自动下载`);
+          const entry = await javadl.ensure(rec.requiredJava, progress => send('java:progress', progress));
+          javaPath = entry.path;
+          await java.scanCached(true);
+        }
+      }
     }
-    if (!javaPath || !fs.existsSync(javaPath)) throw new Error('Java 路径无效，请在设置中选择 Java 或开启自动选择');
+    if (!javaPath || !fs.existsSync(javaPath)) {
+      throw new Error('Java 路径无效：请在设置中选择 Java，或开启「自动选择 Java」让启动器自动下载');
+    }
 
     return launchService.launch({ versionId: options.versionId, javaPath, account, memoryMB, settings: config });
   });

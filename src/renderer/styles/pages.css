@@ -241,6 +241,8 @@
 }
 .java-item:hover { border-color: var(--line-strong); background: var(--card-alt); }
 .java-item.active { border-color: var(--primary); background: var(--primary-soft); }
+div.java-item { width: 100%; font: inherit; color: inherit; cursor: pointer; }
+.java-item > .btn { flex: 0 0 auto; }
 .java-mark { width: 28px; height: 28px; border-radius: 8px; background: var(--bg); display: flex; align-items: center; justify-content: center; color: var(--text-mute); flex: 0 0 28px; }
 .java-main { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 1px; }
 .java-title { display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; }

@@ -18,9 +18,12 @@ function render(state) {
   const autoJava = state.settings.autoJava !== false;
   const autoMemory = state.settings.autoMemory !== false;
   const memory = memoryValue();
-  const javaLabel = autoJava
-    ? `自动 · ${state.auto.javaDisplay || '扫描中…'}`
-    : (state.java.find(item => item.path === state.selection.javaPath)?.display || '未选择 Java');
+  const missingJava = autoJava && state.auto.satisfied === false;
+  const javaLabel = missingJava
+    ? `自动 · 缺少 Java ${state.auto.requiredJava}，启动时自动下载`
+    : autoJava
+      ? `自动 · ${state.auto.javaDisplay || '扫描中…'}`
+      : (state.java.find(item => item.path === state.selection.javaPath)?.display || '未选择 Java');
 
   return `
     ${pageHead('启动游戏', '选择版本与账户，然后出发', `
@@ -54,10 +57,14 @@ function render(state) {
             </select>
           </div>
           <div class="field">
-            <label>Java 运行时 <span class="muted">· ${autoJava ? `自动选择（需要 Java ${state.auto.requiredJava || 17}）` : '手动指定'}</span></label>
+            <label>Java 运行时 <span class="muted">· ${autoJava ? `自动选择（需要 Java ${state.auto.requiredJava || 17}${missingJava ? '，缺失时自动下载' : ''}）` : '手动指定'}</span></label>
             <div class="row">
               <input class="input grow" readonly value="${esc(javaLabel)}">
               <button class="btn" id="java-settings" style="flex:0 0 auto">设置 ${icon('arrowRight', 13)}</button>
+            </div>
+            <div class="install-progress" id="java-dl" style="${state.javaDl.active ? '' : 'display:none'}">
+              <div class="progress"><span id="java-dl-fill" style="width:${state.javaDl.percent || 0}%"></span></div>
+              <div class="install-progress-text"><span id="java-dl-text">${esc(state.javaDl.message || '')}</span><b id="java-dl-percent">${state.javaDl.percent || 0}%</b></div>
             </div>
           </div>
           <div class="field">
@@ -172,7 +179,10 @@ async function mount(root) {
 async function doLaunch() {
   if (!state.selection.versionId) return toastErr('请先选择游戏版本');
   if (!state.selection.accountId) return toastErr('请先在右侧添加并选择账户');
-  if (!state.selection.javaPath) return toastErr('没有可用的 Java，请在设置中指定');
+  // 自动模式允许没有现成 Java：主进程会按版本要求下载对应运行时
+  if (!state.selection.javaPath && state.settings.autoJava === false) {
+    return toastErr('没有可用的 Java，请在设置中指定，或开启「自动选择 Java」');
+  }
 
   state.launching = true;
   setStatus('启动中…', true);

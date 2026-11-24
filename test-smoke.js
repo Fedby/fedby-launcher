@@ -26,7 +26,7 @@ const getJson = url => new Promise((resolve, reject) => {
     await sleep(500);
   }
   const page = targets.find(t => /index\.html/.test(t.url));
-  if (!page) { console.log('FAIL: 窗口未加载'); child.kill(); process.exit(1); }
+  if (!page) { console.log('FAIL: 窗口未加载'); try { require('child_process').execSync('taskkill /PID ' + child.pid + ' /T /F', { stdio: 'ignore' }); } catch (_) {} process.exit(1); }
 
   const ws = new WebSocket(page.webSocketDebuggerUrl);
   await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = reject; });
@@ -91,6 +91,6 @@ const getJson = url => new Promise((resolve, reject) => {
   if (notable.length) console.log('可疑日志:', notable);
 
   ws.close();
-  child.kill();
+  try { require('child_process').execSync('taskkill /PID ' + child.pid + ' /T /F', { stdio: 'ignore' }); } catch (_) {}
   setTimeout(() => process.exit(0), 300);
 })().catch(error => { console.error('测试异常', error); process.exit(1); });

@@ -5,11 +5,13 @@ const path = require('path');
 const os = require('os');
 const { execFile } = require('child_process');
 const { promisify } = require('util');
+const { dirs } = require('./paths');
 
 const execFileAsync = promisify(execFile);
 
 const SEARCH_ROOTS = [
   process.env.JAVA_HOME,
+  dirs.runtimes, // 启动器自己下载的运行时优先纳入扫描
   'C:\\Program Files\\Java',
   'C:\\Program Files\\Eclipse Adoptium',
   'C:\\Program Files\\Microsoft',
@@ -42,8 +44,11 @@ function detectVendor(text) {
 
 async function probe(exePath) {
   if (!exePath || !fs.existsSync(exePath)) return null;
+  // javaw 是 GUI 子系统，控制台输出会丢；同目录的 java.exe 才能读到 -version
+  const consoleExe = /javaw\.exe$/i.test(exePath) ? path.join(path.dirname(exePath), 'java.exe') : exePath;
+  const probeExe = fs.existsSync(consoleExe) ? consoleExe : exePath;
   try {
-    const { stdout, stderr } = await execFileAsync(exePath, ['-version'], { timeout: 8000, windowsHide: true });
+    const { stdout, stderr } = await execFileAsync(probeExe, ['-version'], { timeout: 8000, windowsHide: true });
     const text = `${stderr}\n${stdout}`;
     const major = parseMajorVersion(text);
     if (!major) return null;
@@ -65,6 +70,7 @@ function collectJavaExes(root, depth = 0, out = [], seen = new Set()) {
   try { entries = fs.readdirSync(root, { withFileTypes: true }); } catch (_) { return out; }
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
+    if (entry.name.startsWith('.')) continue; // .staging-* 之类的临时目录不当作运行时
     const full = path.join(root, entry.name);
     if (seen.has(full)) continue;
     seen.add(full);

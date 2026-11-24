@@ -37,6 +37,9 @@ contextBridge.exposeInMainWorld('fedby', {
   java: {
     list: force => invoke('java:list', force),
     probe: exePath => invoke('java:probe', exePath),
+    ensure: feature => invoke('java:ensure', feature),
+    runtimes: () => invoke('java:runtimes'),
+    removeRuntime: feature => invoke('java:removeRuntime', feature),
   },
   runtime: {
     recommend: versionId => invoke('runtime:recommend', versionId),
@@ -80,5 +83,6 @@ contextBridge.exposeInMainWorld('fedby', {
     gameLog: subscribe('game:log'),
     installProgress: subscribe('versions:installProgress'),
     downloadProgress: subscribe('download:progress'),
+    javaProgress: subscribe('java:progress'),
   },
 });

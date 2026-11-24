@@ -37,6 +37,8 @@ const dirs = {
   skins: path.join(DATA_ROOT, 'skins'),
   backups: path.join(DATA_ROOT, 'backups'),
   logs: path.join(DATA_ROOT, 'logs'),
+  runtimes: path.join(DATA_ROOT, 'runtimes'),   // 启动器自己下载的 Java
+  temp: path.join(DATA_ROOT, 'temp'),
   config: path.join(DATA_ROOT, 'config.json'),
   accounts: path.join(DATA_ROOT, 'accounts.json'),
   translationCache: path.join(DATA_ROOT, 'translate-cache.json'),
@@ -52,7 +54,7 @@ function ensureDirs() {
   const targets = [
     dirs.data, dirs.game, dirs.versions, dirs.libraries,
     path.join(dirs.assets, 'indexes'), path.join(dirs.assets, 'objects'),
-    dirs.natives, dirs.skins, dirs.backups, dirs.logs,
+    dirs.natives, dirs.skins, dirs.backups, dirs.logs, dirs.runtimes, dirs.temp,
     dirs.mods, dirs.resourcepacks, dirs.shaderpacks, dirs.saves,
   ];
   for (const dir of targets) {

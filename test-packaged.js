@@ -27,7 +27,7 @@ const getJson = url => new Promise((resolve, reject) => {
     await sleep(500);
   }
   const page = targets.find(t => /index\.html/.test(t.url));
-  if (!page) { console.log('FAIL: 打包后窗口未加载界面'); child.kill(); process.exit(1); }
+  if (!page) { console.log('FAIL: 打包后窗口未加载界面'); try { require('child_process').execSync('taskkill /PID ' + child.pid + ' /T /F', { stdio: 'ignore' }); } catch (_) {} process.exit(1); }
   console.log('页面协议:', page.url.slice(0, 40));
 
   const ws = new WebSocket(page.webSocketDebuggerUrl);
@@ -91,6 +91,6 @@ const getJson = url => new Promise((resolve, reject) => {
 
   console.log('控制台错误:', errors.length ? errors : '无');
   ws.close();
-  child.kill();
+  try { require('child_process').execSync('taskkill /PID ' + child.pid + ' /T /F', { stdio: 'ignore' }); } catch (_) {}
   setTimeout(() => process.exit(0), 400);
 })().catch(error => { console.error('测试异常', error); process.exit(1); });

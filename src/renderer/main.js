@@ -1,8 +1,8 @@
 // 渲染层入口：注册页面、装载数据、绑定全局事件
 import { $ } from './lib/dom.js';
 import { listen } from './lib/ipc.js';
-import { toastErr } from './lib/ui.js';
-import { state, bootstrap } from './store.js';
+import { toastErr, setStatus } from './lib/ui.js';
+import { state, bootstrap, refreshJava } from './store.js';
 import { registerPage, navigate, rerender } from './router.js';
 import { mountChrome, syncChrome } from './shell.js';
 
@@ -27,6 +27,20 @@ function appendLog(entry) {
   terminal.appendChild(line);
   while (terminal.childElementCount > 400) terminal.firstElementChild.remove();
   terminal.scrollTop = terminal.scrollHeight;
+}
+
+/** 只改进度条节点，避免每个进度回调都整页重渲染 */
+function paintJavaProgress() {
+  const wrap = document.querySelector('#java-dl');
+  if (!wrap) return;
+  const dl = state.javaDl;
+  wrap.style.display = dl.active ? '' : 'none';
+  const fill = document.querySelector('#java-dl-fill');
+  if (fill) fill.style.width = (dl.percent || 0) + '%';
+  const text = document.querySelector('#java-dl-text');
+  if (text) text.textContent = dl.message || '';
+  const percent = document.querySelector('#java-dl-percent');
+  if (percent) percent.textContent = (dl.percent || 0) + '%';
 }
 
 function wireGlobalEvents() {
@@ -65,6 +79,28 @@ function wireGlobalEvents() {
     else queue.unshift(entry);
     if (queue.length > 12) queue.pop();
     if (state.page === 'download') refreshQueue();
+  });
+
+  // Java 运行时下载：进度只刷新进度条，结束时才重渲染并重新扫描
+  listen('javaProgress', progress => {
+    const done = progress.phase === 'done';
+    const failed = progress.phase === 'error';
+    state.javaDl = {
+      active: !done && !failed,
+      feature: progress.feature || 0,
+      phase: progress.phase || '',
+      percent: progress.percent || 0,
+      message: progress.message || '',
+    };
+    paintJavaProgress();
+    if (progress.message) setStatus(progress.message, state.javaDl.active);
+    if (done) {
+      setStatus('就绪');
+      refreshJava()
+        .then(() => { if (state.page === 'launch' || state.page === 'settings') rerender(); })
+        .catch(error => console.warn('刷新 Java 列表失败', error.message));
+    }
+    if (failed) setStatus('就绪');
   });
 }
 

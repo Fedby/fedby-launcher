@@ -94,5 +94,5 @@ const getJson = url => new Promise((resolve, reject) => {
   })()`);
   console.log('控制台错误:', errors.length ? errors : '无');
 
-  ws.close(); child.kill(); setTimeout(() => process.exit(0), 500);
+  ws.close(); try { require('child_process').execSync('taskkill /PID ' + child.pid + ' /T /F', { stdio: 'ignore' }); } catch (_) {} setTimeout(() => process.exit(0), 500);
 })().catch(error => { console.error('测试异常', error); process.exit(1); });

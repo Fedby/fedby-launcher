@@ -10,9 +10,11 @@ export const state = {
   accounts: [],
   versions: [],
   java: [],
+  runtimes: [],       // 启动器自己下载的 Java
+  javaDl: { active: false, feature: 0, phase: '', percent: 0, message: '' },
   skins: {},          // uuid -> dataURL
   selection: { accountId: '', versionId: '', javaPath: '' },
-  auto: { requiredJava: 17, javaPath: '', javaDisplay: '', javaMajor: 0, memoryMB: 4096, totalMemMB: 0 },
+  auto: { requiredJava: 17, satisfied: false, javaPath: '', javaDisplay: '', javaMajor: 0, memoryMB: 4096, totalMemMB: 0 },
   logs: [],
   launching: false,
   remoteVersions: [],
@@ -48,18 +50,20 @@ export function accountTypeLabel(account) {
 
 /** 启动时一次性把需要的全局数据装进来 */
 export async function bootstrap() {
-  const [settings, appInfo, accounts, versions, javaList] = await Promise.all([
+  const [settings, appInfo, accounts, versions, javaList, runtimes] = await Promise.all([
     call('settings.get'),
     call('app.info'),
     call('accounts.list'),
     call('versions.list'),
     call('java.list', false),
+    call('java.runtimes'),
   ]);
   state.settings = settings;
   state.appInfo = appInfo;
   state.accounts = accounts;
   state.versions = versions;
   state.java = javaList;
+  state.runtimes = runtimes;
   applyTheme(settings.themeColor);
 
   state.selection.accountId = accounts.some(a => a.id === settings.lastAccountId)
@@ -81,6 +85,13 @@ export async function loadRecommendRuntime() {
   } catch (err) {
     console.warn('运行时推荐失败', err.message);
   }
+}
+
+/** Java 刚下载完时刷新列表与推荐，并重新指向新运行时 */
+export async function refreshJava() {
+  state.java = await call('java.list', true);
+  state.runtimes = await call('java.runtimes');
+  await loadRecommendRuntime();
 }
 
 export async function loadSkins() {
