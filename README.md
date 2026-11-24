@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="docs/icon.png" width="104" alt="Fedby 启动器">
+<img src="docs/icon.png" width="104" alt="Fedby 启动器（Build from DeepSeek）">
 
-# Fedby 启动器
+# Fedby 启动器（Build from DeepSeek）
 
 **一个对标 PCL2 的 Minecraft Java 版启动器 —— 界面清爽、下载省心、开箱能用。**
 
@@ -10,6 +10,7 @@
 [![License](https://img.shields.io/github/license/Fedby/fedby-launcher?color=4f6ef7)](LICENSE)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%20%2F%2011-4f6ef7)
 ![Electron](https://img.shields.io/badge/electron-38-4f6ef7)
+![Build](https://img.shields.io/badge/build-DeepSeek-4f6ef7)
 
 [下载](#下载与安装) · [功能一览](#功能一览) · [快速开始](#快速开始) · [常见问题](#常见问题)
 
