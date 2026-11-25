@@ -8,6 +8,7 @@ const crypto = require('crypto');
 
 const { dirs } = require('./paths');
 const net = require('./net');
+const mirror = require('./mirror');
 const java = require('./java');
 const unzip = require('./unzip');
 
@@ -130,8 +131,10 @@ async function resolveAsset(major) {
 }
 
 async function downloadAsset(asset, zipPath, emit) {
-  const urls = [...MIRRORS.map(build => build(asset)), asset.link]
-    .filter((url, index, all) => url && all.indexOf(url) === index);
+  const mirrored = MIRRORS.map(build => build(asset));
+  // 镜像源模式下清华镜像优先，官方模式下 Adoptium 官方优先；失败都会自动换另一边
+  const candidates = mirror.resolve() === 'mirror' ? [...mirrored, asset.link] : [asset.link, ...mirrored];
+  const urls = candidates.filter((url, index, all) => url && all.indexOf(url) === index);
   let lastError = null;
 
   for (const url of urls) {

@@ -18,12 +18,16 @@ function render(state) {
   const autoJava = state.settings.autoJava !== false;
   const autoMemory = state.settings.autoMemory !== false;
   const memory = memoryValue();
-  const missingJava = autoJava && state.auto.satisfied === false;
-  const javaLabel = missingJava
-    ? `自动 · 缺少 Java ${state.auto.requiredJava}，启动时自动下载`
-    : autoJava
-      ? `自动 · ${state.auto.javaDisplay || '扫描中…'}`
-      : (state.java.find(item => item.path === state.selection.javaPath)?.display || '未选择 Java');
+  // Java 扫描挪到首屏之后了：没扫完就不要吓用户说「缺少 Java」
+  const runtimeReady = state.runtimeReady !== false;
+  const missingJava = runtimeReady && autoJava && state.auto.satisfied === false;
+  const javaLabel = !runtimeReady
+    ? '自动 · 正在扫描 Java…'
+    : missingJava
+      ? `自动 · 缺少 Java ${state.auto.requiredJava}，启动时自动下载`
+      : autoJava
+        ? `自动 · ${state.auto.javaDisplay || '扫描中…'}`
+        : (state.java.find(item => item.path === state.selection.javaPath)?.display || '未选择 Java');
 
   return `
     ${pageHead('启动游戏', '选择版本与账户，然后出发', `
@@ -83,7 +87,7 @@ function render(state) {
           </button>
           <button class="btn danger" id="btn-stop" style="${state.launching ? '' : 'display:none'}">停止</button>
         </div>
-        ${state.versions.length ? '' : `<div class="hint-box" style="margin-top:10px">还没有任何版本，先去「版本」页安装一个（26.3 素材已就位，安装后即可启动）。</div>`}
+        ${state.versions.length ? '' : `<div class="hint-box" style="margin-top:10px">还没有任何版本，去「下载」页装一个：原版、Fabric、Forge、NeoForge、Quilt、OptiFine 都能直接选。</div>`}
       </div>
 
       <div class="stack">

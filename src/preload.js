@@ -26,6 +26,14 @@ contextBridge.exposeInMainWorld('fedby', {
     patch: payload => invoke('settings:patch', payload),
     reset: () => invoke('settings:reset'),
   },
+  update: {
+    check: force => invoke('update:check', { force: !!force }),
+    download: () => invoke('update:download'),
+    install: file => invoke('update:install', file),
+    open: page => invoke('update:open', page),
+    skip: version => invoke('update:skip', version),
+    version: () => invoke('update:version'),
+  },
   versions: {
     list: () => invoke('versions:list'),
     remote: type => invoke('versions:remote', type),
@@ -43,6 +51,15 @@ contextBridge.exposeInMainWorld('fedby', {
   },
   runtime: {
     recommend: versionId => invoke('runtime:recommend', versionId),
+  },
+  source: {
+    status: () => invoke('source:status'),
+    probe: () => invoke('source:probe'),
+  },
+  loaders: {
+    catalog: () => invoke('loaders:catalog'),
+    info: (kind, mc) => invoke('loaders:info', kind, mc),
+    install: options => invoke('loaders:install', options),
   },
   accounts: {
     list: () => invoke('accounts:list'),
@@ -75,7 +92,8 @@ contextBridge.exposeInMainWorld('fedby', {
     search: (source, options) => invoke('download:search', source, options),
     versions: (source, projectId, gameVersion, loader) => invoke('download:versions', source, projectId, gameVersion, loader),
     installed: targetType => invoke('download:installed', targetType),
-    recommend: () => invoke('download:recommend'),
+    recommend: (source, options) => invoke('download:recommend', source, options),
+    categories: (source, type) => invoke('download:categories', source, type),
     install: (source, options) => invoke('download:install', source, options),
     cfKey: () => invoke('download:cfKey'),
   },
@@ -84,5 +102,7 @@ contextBridge.exposeInMainWorld('fedby', {
     installProgress: subscribe('versions:installProgress'),
     downloadProgress: subscribe('download:progress'),
     javaProgress: subscribe('java:progress'),
+    loadersProgress: subscribe('loaders:progress'),
+    updateProgress: subscribe('update:progress'),
   },
 });

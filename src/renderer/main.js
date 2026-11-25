@@ -2,19 +2,24 @@
 import { $ } from './lib/dom.js';
 import { listen } from './lib/ipc.js';
 import { toastErr, setStatus } from './lib/ui.js';
-import { state, bootstrap, refreshJava } from './store.js';
+import { state, bootstrapCore, bootstrapLazy, refreshJava } from './store.js';
 import { registerPage, navigate, rerender } from './router.js';
 import { mountChrome, syncChrome } from './shell.js';
+import { initSelects } from './components/select.js';
+import { scheduleUpdateCheck } from './components/updater.js';
 
 import launchPage from './pages/launch.js';
 import versionsPage from './pages/versions.js';
-import downloadPage, { refreshQueue } from './pages/download.js';
+import downloadPage, { refreshQueue, paintLoaderProgress } from './pages/download.js';
 import settingsPage from './pages/settings.js';
 
 registerPage(launchPage);
 registerPage(versionsPage);
 registerPage(downloadPage);
 registerPage(settingsPage);
+
+// 所有 <select class="select"> 自动升级成自绘下拉（含之后动态插入的）
+initSelects();
 
 function appendLog(entry) {
   state.logs.push(entry);
@@ -81,6 +86,11 @@ function wireGlobalEvents() {
     if (state.page === 'download') refreshQueue();
   });
 
+  // 加载器安装进度（原版 / Fabric / Forge / NeoForge / OptiFine）
+  listen('loadersProgress', progress => {
+    if (state.page === 'download') paintLoaderProgress(progress);
+  });
+
   // Java 运行时下载：进度只刷新进度条，结束时才重渲染并重新扫描
   listen('javaProgress', progress => {
     const done = progress.phase === 'done';
@@ -106,11 +116,22 @@ function wireGlobalEvents() {
 
 async function boot() {
   try {
-    await bootstrap();
+    // 先把首屏要用的东西装好就立刻渲染，Java 扫描等重活放到后面补
+    await bootstrapCore();
     mountChrome();
     syncChrome();
     wireGlobalEvents();
     await navigate('launch');
+    window.__fedbyBootMs = Math.round(performance.now());
+
+    bootstrapLazy()
+      .then(() => {
+        if (state.page === 'launch' || state.page === 'settings') rerender();
+      })
+      .catch(error => console.warn('后台数据装载失败', error.message));
+
+    // 首屏稳定后再查 GitHub 有没有新版本，别和启动数据抢时间
+    scheduleUpdateCheck();
   } catch (error) {
     console.error('启动失败', error);
     document.getElementById('view').innerHTML = `

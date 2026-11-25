@@ -20,7 +20,8 @@ const getJson = url => new Promise((resolve, reject) => {
   const env = { ...process.env };
   delete env.ELECTRON_RUN_AS_NODE;
   const child = spawn(path.join(__dirname, 'node_modules', 'electron', 'dist', 'electron.exe'),
-    [__dirname, `--remote-debugging-port=${PORT}`], { env, stdio: ['ignore', 'pipe', 'pipe'] });
+    [__dirname, `--remote-debugging-port=${PORT}`,
+      ...(process.env.FEDBY_TEST_PROFILE ? [`--user-data-dir=${process.env.FEDBY_TEST_PROFILE}`] : [])], { env, stdio: ['ignore', 'pipe', 'pipe'] });
   child.stdout.on('data', chunk => process.stdout.write('[主进程] ' + chunk));
 
   let targets = [];

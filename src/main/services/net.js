@@ -137,6 +137,70 @@ function download(url, dest, options = {}) {
   });
 }
 
+/**
+ * 多源竞速：同时向官方与镜像发请求，谁先给出结果用谁。
+ * 小体积元数据用它，比「先试官方、超时再试镜像」快一个数量级。
+ */
+function requestTextRace(urls, options = {}) {
+  const list = (urls || []).filter(Boolean);
+  if (list.length <= 1) return requestText(list[0], options);
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let pending = list.length;
+    for (const url of list) {
+      requestText(url, options).then(text => {
+        if (settled) return;
+        settled = true;
+        resolve(text);
+      }).catch(error => {
+        pending -= 1;
+        if (!settled && pending === 0) reject(error);
+      });
+    }
+  });
+}
+
+function requestJsonRace(urls, options = {}) {
+  return requestTextRace(urls, options).then(text => {
+    try { return JSON.parse(text); } catch (_) { throw new Error('响应不是合法 JSON'); }
+  });
+}
+
+/** 依次尝试多个地址，返回第一个成功的文本（下载源自动回退用） */
+async function requestTextAny(urls, options = {}) {
+  let lastError = null;
+  for (const url of urls) {
+    if (!url) continue;
+    try { return await requestText(url, options); }
+    catch (error) { lastError = error; }
+  }
+  throw lastError || new Error('没有可用的下载源');
+}
+
+async function requestJsonAny(urls, options = {}) {
+  const text = await requestTextAny(urls, options);
+  try { return JSON.parse(text); } catch (_) { throw new Error('响应不是合法 JSON'); }
+}
+
+/** 依次尝试多个地址下载同一个文件，全部失败才抛错 */
+async function downloadAny(urls, dest, options = {}) {
+  const { onFail, onSuccess, ...rest } = options;
+  let lastError = null;
+  for (const url of urls) {
+    if (!url) continue;
+    try {
+      await download(url, dest, rest);
+      if (onSuccess) { try { onSuccess(url); } catch (_) {} }
+      return url;
+    } catch (error) {
+      lastError = error;
+      // 校验失败或网络错误都换下一个源；.part 已在 download 内清理
+      if (onFail) { try { onFail(url, error); } catch (_) {} }
+    }
+  }
+  throw lastError || new Error('所有下载源均不可用: ' + path.basename(dest));
+}
+
 /** 并发池：限制同时运行的任务数，保持输入顺序返回 */
 async function pool(items, limit, worker) {
   const results = new Array(items.length);
@@ -151,4 +215,8 @@ async function pool(items, limit, worker) {
   return results;
 }
 
-module.exports = { UA, requestText, requestJson, postJson, download, pool, sha1File, fileMatches };
+module.exports = {
+  UA, requestText, requestJson, postJson, download, pool,
+  requestTextAny, requestJsonAny, downloadAny,
+  requestTextRace, requestJsonRace, sha1File, fileMatches,
+};

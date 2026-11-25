@@ -2,7 +2,7 @@
 // IPC 桥：渲染进程唯一入口。所有通道集中注册，统一错误包装与日志。
 const path = require('path');
 const fs = require('fs');
-const { ipcMain, shell, dialog, BrowserWindow } = require('electron');
+const { ipcMain, shell, dialog, BrowserWindow, app } = require('electron');
 
 const { dirs } = require('./services/paths');
 const settings = require('./services/settings');
@@ -10,6 +10,8 @@ const versions = require('./services/versions');
 const java = require('./services/java');
 const runtime = require('./services/runtime');
 const javadl = require('./services/javadl');
+const loaders = require('./services/loaders');
+const mirror = require('./services/mirror');
 const accounts = require('./services/accounts');
 const microsoft = require('./services/microsoft');
 const yggdrasil = require('./services/yggdrasil');
@@ -17,6 +19,7 @@ const content = require('./services/content');
 const launchService = require('./services/launch');
 const providers = require('./services/providers');
 const types = require('./services/providers/types');
+const update = require('./services/update');
 
 let mainWindow = null;
 let loginInFlight = false;
@@ -122,6 +125,22 @@ function registerAll(window) {
   register('settings:patch', payload => settings.patch(payload));
   register('settings:reset', () => settings.patch(settings.DEFAULTS));
 
+  // ---------- 启动器自更新 ----------
+  register('update:check', options => update.check(options || {}));
+  register('update:download', () => update.download({ onProgress: progress => send('update:progress', progress) }));
+  register('update:install', async file => {
+    const result = await update.install(file);
+    // 安装程序已经起来了，启动器让路，1.2 秒后自己退出
+    setTimeout(() => { try { app.quit(); } catch (_) {} }, 1200);
+    return result;
+  });
+  register('update:open', page => update.openRelease(page));
+  register('update:skip', version => {
+    settings.patch({ skippedVersion: String(version || '') });
+    return { skippedVersion: String(version || '') };
+  });
+  register('update:version', () => update.currentVersion());
+
   // ---------- 版本 ----------
   register('versions:list', () => versions.list());
   register('versions:remote', type => versions.remote(type));
@@ -138,6 +157,22 @@ function registerAll(window) {
     // 装完顺手把缺少的 Java 下好，不阻塞安装结果
     prepareJava(id).catch(error => console.warn('[java] 后台准备运行时失败:', error.message));
     return versions.list();
+  });
+
+  // ---------- 下载源 ----------
+  register('source:status', () => mirror.status());
+  register('source:probe', async () => { await mirror.probe(true); return mirror.status(); });
+
+  // ---------- 加载器 ----------
+  register('loaders:catalog', () => loaders.CATALOG);
+  register('loaders:info', (kind, mc) => loaders.loaderInfo(kind, mc));
+  register('loaders:install', async options => {
+    const result = await loaders.install({
+      ...options,
+      onProgress: progress => send('loaders:progress', progress),
+    });
+    prepareJava(result.versionId).catch(error => console.warn('[java] 后台准备运行时失败:', error.message));
+    return { ...result, versions: versions.list() };
   });
 
   // ---------- Java / 运行时 ----------
@@ -232,7 +267,8 @@ function registerAll(window) {
   register('download:search', (source, options) => providers.search(source, options));
   register('download:versions', (source, projectId, gameVersion, loader) => providers.versions(source, projectId, gameVersion, loader));
   register('download:installed', targetType => providers.installed(targetType));
-  register('download:recommend', () => providers.recommend());
+  register('download:recommend', (source, options) => providers.recommend(source || 'modrinth', options || {}));
+  register('download:categories', (source, type) => providers.categories(source || 'modrinth', type));
   register('download:install', (source, options) => providers.install(source, {
     ...options,
     onProgress: progress => send('download:progress', progress),

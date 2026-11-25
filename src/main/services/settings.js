@@ -17,11 +17,14 @@ const DEFAULTS = {
   jvmArgExtra: '',
   launchArgExtra: '',
   downloadConcurrency: 8,
+  sourceMode: 'auto',            // auto=测速择优 | official=只用官方 | mirror=只用镜像
   autoDownloadAssets: true,
   translateDescriptions: true,
   curseforgeKey: '',
   skinSite: 'https://littleskin.cn',
   injectorJar: '',
+  autoCheckUpdate: true,        // 启动时检查 GitHub 有没有新版本
+  skippedVersion: '',           // 用户点过「跳过此版本」的版本号
 };
 
 let cache = null;

@@ -11,7 +11,8 @@ const GAME_ID = 432;
 const PAGE_SIZE = 50;
 const MAX_PAGES = 4; // 最多 200 个文件，「全版本」才覆盖得到旧文件
 
-const CLASS_IDS = { mod: 6, modpack: 4471, resourcepack: 12, shader: 17, world: 4559, plugin: 5, datapack: 6945 };
+// CurseForge classId：光影是 6552，地图是 17（旧值 4559 其实是 Addons）
+const CLASS_IDS = { mod: 6, modpack: 4471, resourcepack: 12, shader: 6552, world: 17, plugin: 5, datapack: 6945 };
 const PATH_SLUGS = {
   mod: 'mc-mods', modpack: 'modpacks', resourcepack: 'texture-packs',
   shader: 'shaders', world: 'worlds', plugin: 'bukkit-plugins', datapack: 'mc-mods',
@@ -52,7 +53,7 @@ function toVersion(file) {
 }
 
 async function search(options = {}) {
-  const { query = '', type = 'mod', gameVersion = '', loader = '', sort = 'downloads', limit = 24, offset = 0 } = options;
+  const { query = '', type = 'mod', gameVersion = '', loader = '', category = '', sort = 'downloads', limit = 24, offset = 0 } = options;
   const sortField = { downloads: 6, relevance: 1, follows: 2, newest: 11, updated: 3 }[sort] || 6;
   const params = new URLSearchParams({
     gameId: String(GAME_ID),
@@ -66,6 +67,7 @@ async function search(options = {}) {
   if (gameVersion) params.set('gameVersion', gameVersion);
   const loaderId = LOADER_IDS[String(loader).toLowerCase()];
   if (loaderId) params.set('modLoaderType', String(loaderId));
+  if (category) params.set('categoryId', String(category));
 
   const data = await net.requestJson(`${API}/mods/search?${params.toString()}`, { headers: headers() });
   if (data.error) throw new Error(data.error.message || 'CurseForge 请求失败');
@@ -129,6 +131,10 @@ async function versionById(fileId, projectId) {
 module.exports = {
   name: 'curseforge',
   label: 'CurseForge',
+  API,
+  GAME_ID,
+  CLASS_IDS,
+  headers,
   search,
   versions,
   versionById,

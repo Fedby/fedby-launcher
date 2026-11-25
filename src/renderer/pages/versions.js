@@ -2,10 +2,20 @@
 import { $, esc, fmtSize, fmtTime } from '../lib/dom.js';
 import { call } from '../lib/ipc.js';
 import { icon } from '../lib/icons.js';
-import { pageHead, toast, toastOk, toastErr, modal, closeModal, confirm, busy, empty, setStatus, loading } from '../lib/ui.js';
+import { pageHead, toast, toastOk, toastErr, confirm, empty } from '../lib/ui.js';
 import { state, refreshVersions, selectVersion, loadRecommendRuntime, reportError } from '../store.js';
 import { rerender, navigate } from '../router.js';
 import { showVersionCheck } from '../components/versionCheck.js';
+
+const loaderLabel = id => {
+  const text = String(id || '');
+  if (/neoforge/i.test(text)) return 'NeoForge';
+  if (/fabric/i.test(text)) return 'Fabric';
+  if (/quilt/i.test(text)) return 'Quilt';
+  if (/forge/i.test(text)) return 'Forge';
+  if (/optifine/i.test(text)) return 'OptiFine';
+  return '模组';
+};
 
 function render(state) {
   const rows = state.versions.map(version => `
@@ -14,10 +24,10 @@ function render(state) {
       <div class="list-body">
         <div class="list-title">${esc(version.id)}
           <span class="badge ${version.type === 'release' ? 'green' : 'amber'}">${esc(version.type)}</span>
-          ${version.modded ? '<span class="badge blue">模组</span>' : ''}
+          ${version.modded ? `<span class="badge blue">${esc(loaderLabel(version.id))}</span>` : ''}
           ${version.id === state.selection.versionId ? '<span class="badge green">当前</span>' : ''}
         </div>
-        <div class="list-desc">${fmtTime(version.releaseTime)} · Java ${version.javaMajor}+ · ${fmtSize(version.jarSize)} · 资源索引 ${esc(version.assetIndex || '-')}</div>
+        <div class="list-desc">${fmtTime(version.releaseTime)} · Java ${version.javaMajor}+ · ${fmtSize(version.jarSize)}${version.inheritsFrom ? ` · 基于 ${esc(version.inheritsFrom)}` : ''} · 资源索引 ${esc(version.assetIndex || '-')}</div>
       </div>
       <div class="list-actions">
         <button class="btn sm" data-use="${esc(version.id)}">选用</button>
@@ -45,7 +55,12 @@ function render(state) {
 }
 
 function mount(root) {
-  const open = () => showInstallDialog();
+  // 「安装新版本」统一走下载中心的原版游戏页（可搭配 Fabric / Forge / NeoForge / Quilt / OptiFine）
+  const open = () => {
+    state.download.section = 'game';
+    state.download.install = null;
+    navigate('download');
+  };
   const installEmpty = $('#install-empty');
   if (installEmpty) installEmpty.addEventListener('click', open);
   $('#install-version').addEventListener('click', open);
@@ -90,87 +105,6 @@ function mount(root) {
       } catch (error) { reportError('删除失败', error); }
     });
   });
-}
-
-async function showInstallDialog() {
-  modal({
-    title: '安装新版本',
-    subtitle: '从 Mojang 官方源下载，自动校验 SHA1',
-    body: `
-      <div class="field">
-        <label>版本类型</label>
-        <select class="select" id="install-type">
-          <option value="release">正式版（Release）</option>
-          <option value="all">全部（含快照 / 旧预览）</option>
-        </select>
-      </div>
-      <div class="field">
-        <label>选择版本 <span class="muted" id="install-count"></span></label>
-        <select class="select" id="install-id" size="9" style="height:220px"></select>
-      </div>
-      <div class="install-progress" id="install-progress">
-        <div class="progress"><span id="install-fill" style="width:0"></span></div>
-        <div class="install-progress-text"><span id="install-stage">等待开始</span><b id="install-percent">0%</b></div>
-      </div>`,
-    footer: `<button class="btn" data-close>取消</button>
-             <button class="btn primary" id="install-go" disabled>${icon('download', 14)} 开始安装</button>`,
-  });
-
-  const typeSelect = $('#install-type');
-  const idSelect = $('#install-id');
-  const goButton = $('#install-go');
-  const stage = $('#install-stage');
-  const percent = $('#install-percent');
-
-  async function loadList() {
-    stage.textContent = '获取版本列表…';
-    idSelect.innerHTML = '<option>加载中…</option>';
-    goButton.disabled = true;
-    try {
-      const list = await call('versions.remote', typeSelect.value);
-      const installedIds = new Set(state.versions.map(version => version.id));
-      const filtered = list.filter(version => !installedIds.has(version.id));
-      idSelect.innerHTML = filtered.length
-        ? filtered.map(version => `<option value="${esc(version.id)}">${esc(version.id)} · ${esc(version.type)} · ${fmtTime(version.releaseTime)}</option>`).join('')
-        : '<option value="">该类型下没有未安装的版本</option>';
-      $('#install-count').textContent = `未安装 ${filtered.length} 个`;
-      goButton.disabled = !idSelect.value;
-      stage.textContent = '等待开始';
-      percent.textContent = '0%';
-      $('#install-fill').style.width = '0';
-    } catch (error) {
-      idSelect.innerHTML = '<option value="">获取失败</option>';
-      stage.textContent = '获取版本列表失败：' + error.message;
-    }
-    setStatus('就绪');
-  }
-
-  typeSelect.addEventListener('change', loadList);
-  idSelect.addEventListener('change', () => { goButton.disabled = !idSelect.value; });
-
-  goButton.addEventListener('click', async () => {
-    const id = idSelect.value;
-    if (!id) return;
-    const restore = busy(goButton, '安装中…');
-    setStatus('安装版本 ' + id, true);
-    stage.textContent = '准备中…';
-    try {
-      await call('versions.install', id);
-      await refreshVersions();
-      await selectVersion(id);
-      await loadRecommendRuntime();
-      closeModal();
-      rerender();
-      toastOk(`版本 ${id} 安装完成`);
-    } catch (error) {
-      stage.textContent = '安装失败：' + error.message;
-      toastErr('安装失败：' + error.message);
-      restore();
-    }
-    setStatus('就绪');
-  });
-
-  loadList();
 }
 
 export default { id: 'versions', label: '版本', icon: 'layers', render, mount };

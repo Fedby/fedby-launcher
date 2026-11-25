@@ -38,17 +38,29 @@ Fedby 启动器用 Electron + Node.js 写成，只做一件事：让你少折腾
 **版本管理**
 
 - 从 Mojang 官方源安装任意正式版 / 快照，含依赖库与资源文件，逐个 SHA1 校验，多线程下载
+- 「安装新版本」直接跳到下载中心的原版游戏页，可顺便挑加载器
 - 「检查」弹窗分五个标签：基本信息、模组、资源包、光影、存档；每个标签都能一键打开对应文件夹
 - 基本信息页提供版本目录、游戏根目录、模组、资源包、光影、存档、备份七个快捷入口
 
 **下载中心**
 
+- 左侧子页分开管理：原版游戏 / Mod / 整合包 / 数据包 / 资源包 / 光影包 / 地图 / 插件，各下各的
+- 原版游戏页直接拉 Mojang 全量清单（正式版 / 预览版 / 远古版 / 愚人节版，共 900+ 个版本），不再只列几个常用版本
+- 选中版本后可自由搭配加载器：Fabric、Forge、NeoForge、Quilt、OptiFine，或只装原版；Fabric / Quilt 还能勾选顺带装 **Fabric API**
+- 加载器版本也能自己挑（列出该游戏版本的全部可用构建并标出推荐），原版与依赖库缺失时自动补齐
+- **下载源自动择优**：用小文件实测官方源（Mojang / Forge / Adoptium）与镜像源（BMCLAPI / 清华 TUNA）的响应速度，快的一边排前面，失败自动换另一边；也可以在设置里固定只走官方或只走镜像（页面右上角随时能看到当前用的是哪边）
+- 版本清单、加载器列表、maven 索引这类小体积元数据直接两边**并行竞速**，谁先回用谁——之前 Fabric 元数据慢的时候加载器行会卡在「获取中…」，现在基本秒出
 - Modrinth 与 CurseForge 双源搜索，支持模组、整合包、资源包、光影、地图、插件、数据包七类资源
-- 首页热门模组推荐，点开就能挑版本装
+- 每个子页都有**类型筛选**：模组按科技 / 魔法 / 冒险，光影按写实 / 奇幻 / 卡通，资源包按分辨率与风格，地图按跑酷 / 解谜 / 生存……点一下标签就直接按该类型搜索，中文标签由 Modrinth 分类与 CurseForge 分类名统一翻译
+- 每个子页也都有**推荐位**：跟随当前的类型 / 版本 / 加载器筛选拉热门，「换一批」往后翻一页，点开就能挑具体文件安装
+- 版本与加载器下拉里能选到 Mojang 全部版本（含预览版 / 远古版 / 愚人节版），改筛选立刻重搜，不用再点按钮；所有下拉框都换成了自绘弹层（原生 `select` 留在底下当数据源，`value` / `options` / `change` 用法不变），选项超过 10 条自动带搜索框，方向键 / 回车 / Esc 全键盘可用
+- 各子页的筛选与结果互相独立，来回切换不会丢状态
 - 模组名显示中文（人工校对词库 → MC百科 → 麦块社区，查不到就老实保留英文），简介优先取 MC百科中文原文
 - 安装前可按「游戏版本 + 加载器 + 关键词」三重筛选，默认已匹配当前版本；依赖自动一并装上，重复文件自动跳过
 
 ![下载中心](docs/screenshot-download.png)
+
+![选择加载器](docs/screenshot-install.png)
 
 **账户**
 
@@ -61,9 +73,18 @@ Fedby 启动器用 Electron + Node.js 写成，只做一件事：让你少折腾
 - 8 种主题色 + 自定义取色，改完立刻生效
 - Java 运行时扫描、手动指定、一键下载对应版本（含删除已下载的运行时）
 - 内存与分辨率、全屏、额外 JVM 参数与游戏参数
+- 下载源可在「自动择优 / 官方源 / 镜像源」之间切换，随时重新测速查看两边延迟
 - 下载并发数、社区中文数据开关、CurseForge API Key、数据目录直达
+- 「关于」卡片里能手动检查更新，也能关掉启动时自动检查
 
 ![设置](docs/screenshot-settings.png)
+
+**自动更新**
+
+- 启动后约 2.5 秒静默查一次 GitHub Releases，有新版本才弹窗；没有新版或网络不通就安静跳过，不打扰启动
+- 弹窗直接列出这一版的更新说明，三个选择：**下载并安装**（拉 Setup 包，下完自动拉起安装程序，启动器随后退出）/ 稍后提醒 / 跳过此版本（同一个版本不再提醒，出更新版本还会弹）
+- 手动「检查更新」走同一套界面，只是不给「跳过」
+- 版本号比对兼容 `v1.2`、`1.2.0`、`1.2.0-beta.1` 这几种写法，预发布版永远排在正式版后面
 
 ## 下载与安装
 
@@ -71,8 +92,8 @@ Fedby 启动器用 Electron + Node.js 写成，只做一件事：让你少折腾
 
 | 版本 | 适合谁 | 说明 |
 |---|---|---|
-| `FedbyLauncher-Portable-1.1.0.exe` | 想直接用 | 单文件免安装，双击即运行，可放 U 盘带走 |
-| `FedbyLauncher-Setup-1.1.0.exe` | 想长期用 | 安装版，可自选目录，自动创建桌面与开始菜单快捷方式 |
+| `FedbyLauncher-Portable-1.2.0.exe` | 想直接用 | 单文件免安装，双击即运行，可放 U 盘带走 |
+| `FedbyLauncher-Setup-1.2.0.exe` | 想长期用 | 安装版，可自选目录，自动创建桌面与开始菜单快捷方式 |
 
 **系统要求**：Windows 10 / 11（64 位）。启动器本体约 300 MB，装游戏本体另需约 800 MB。
 
@@ -146,8 +167,8 @@ src/main/            Electron 主进程
   bridge.js          全部 IPC 注册（只做路由与错误包装）
   services/          paths settings net versions java runtime launch
                      content accounts microsoft yggdrasil i18n
-                     javadl unzip
-                     providers/{modrinth,curseforge,installer}
+                     javadl unzip loaders mirror
+                     providers/{modrinth,curseforge,installer,taxonomy}
 src/preload.js       contextBridge 暴露 window.fedby
 src/renderer/        原生 ES Module：router store shell lib components pages styles
 ```
@@ -159,6 +180,10 @@ src/renderer/        原生 ES Module：router store shell lib components pages 
 - **26.x 的新式原生库**：natives 是带 classifier 后缀的独立 library 条目，靠 `rules` 按平台筛完全部进 classpath，不是老的 `natives` 嵌套结构。
 - **微软登录用授权码流程**，不是设备码。`/devicecode` 要求每个启动器自有且经 Mojang 审批的 Azure 应用，公开的 client id 在 consumers 租户已不存在，拿不到验证码。
 - **中文名不机翻**，走「人工词库 → MC百科 → 麦块」，宁缺毋滥。
+- **加载器走官方渠道**：Fabric / Quilt 直接取官方 profile JSON 落盘（maven 坐标自己拼下载地址），Forge / NeoForge 调官方 installer 无头安装，OptiFine 以模组形式放进 `mods`；都支持 `inheritsFrom` 增量合并，原版库、参数、资源索引从父版本继承。
+- **类型筛选统一到一张表**：`providers/taxonomy.js` 把 Modrinth 的 category 标签和 CurseForge 的 categoryId 收敛成 `{ key, label }`，中文标签两边共用；数据包 / 插件在 Modrinth 里本质是带 `datapack` / `paper` 标签的 mod，搜索时额外收一道 facet 才不会混进普通模组。
+- **下载源分三档**：`mirror.js` 测速后决定顺序，`net.downloadAny`（或 `urlsFor`）按序回退；同一个源连续失败 4 次就临时降级两分钟，避免某个镜像节点抽风时整批资源都卡在 60 秒超时上。资源文件超时压到 12 秒，就是为了坏节点能尽快换边。
+- **首屏不等重活**：Java 扫描（`where java` + 多个安装目录探测，约 300 ms）挪到首屏渲染之后，扫描结果落盘缓存 12 小时，下次启动直接命中；皮肤、运行时推荐同样延后。
 - **Java 运行时自己管**：按版本 `javaVersion.majorVersion` 判定缺哪个主版本，调 Adoptium API 取 Temurin JRE，SHA256 校验后解压到 `runtimes/`；下载走清华镜像、失败回落 GitHub。解压是手写的 ZIP 解析（store + deflate），不引第三方解压库。
 
 <details>
@@ -170,20 +195,31 @@ src/renderer/        原生 ES Module：router store shell lib components pages 
 |---|---|
 | `test-services.js` | 无界面跑服务层：版本 / classpath / Java / 命令构建 / 双源搜索 / 中文数据 / 配置 |
 | `test-smoke.js` | 启动 Electron（CDP）：四页渲染、首屏自动选择、截图、控制台错误 |
-| `test-flow.js` | 下载页推荐与搜索、安装弹窗筛选、版本检查五个标签 |
+| `test-flow.js` | 版本详情五个标签、存档列表；下载页那部分已由 `test-download-*.js` 接管 |
 | `test-mslogin.js` | 微软登录弹窗、真实授权页、回调拦截与错误提示 |
 | `test-launch2.js` | 离线账户真实启动 26.3 至主菜单，随后停止并清理 |
 | `test-javadl.js` | 真实下载 Java 25：镜像 + SHA256 + 解压 382 个文件 + 探测版本（约 6 秒） |
 | `test-java-ui.js` | 设置页「下载 Java」按钮、进度条、运行时徽章与删除 |
+| `test-download-filters.js` | 七个资源子页的类型标签、点标签即搜索、每页推荐、版本切换自动重搜、安装弹窗 |
 | `test-java-launch.js` | 用下载来的 Temurin 真实启动 26.3，验证运行时可用 |
+| `test-update.js` | 版本号比对、真实 GitHub Release 查询、启动时更新弹窗与跳过、下载失败后的恢复 |
 | `test-packaged.js` | 运行 `dist/` 里的打包产物，验证 asar 与协议（可用 `EXE=` 指定便携版） |
 
-v1.1.0 的实测结果：
+本版（1.2.0）的实测结果：
 
+- 自更新：`/releases/latest` 真实返回 v1.1（当前 1.2.0 → 判定「无需更新」）；用假 release 模拟 v9.9.9 时，启动 2.6 秒后弹出「发现新版本」、说明按标题 / 条目 / 引用三级渲染、跳过写入配置后不再弹
+- 下载失败（假地址 404 / 超时）时弹窗恢复按钮、进度条收起，控制台无报错
+- 加载器卡片改成外框 + 分隔线结构，展开后不再出现圆角台阶；「加载器版本」标签与下拉同一行，整块高度从 120 px 降到 97 px
+- 回归：服务层 17/17、四页冒烟、下载页 928 个版本、七子页筛选与推荐、下拉框全部通过
+
+下载源与启动提速的实测结果（同属本版）：
+
+- 启动速度：打包版从进程启动到首屏内容 **412 ms**（优化前 618 ms），省下的是 Java 扫描与皮肤下载不再挡首屏
+- 下载源：自动模式实测官方 600 ms / 镜像 1103 ms，选中官方；强制镜像模式下完整装好 `rd-132211`（版本 JSON / 客户端 jar / 依赖库 / 资源对象全部走 BMCLAPI），classpath 10 项零缺失
+- 加载器：Fabric 元数据从 **113 秒降到 492 ms**（两边竞速），Forge / Quilt 分别 2.4 s / 2.0 s；26.3 的加载器行不再卡在「获取中…」
 - 服务层 17 项全通过：26.3 的 114 个库、classpath 74 项零缺失、Java 25 自动匹配、命令 36 个参数无残留占位符、Modrinth 与 CurseForge 搜索均正常、译名为「机械动力 / JEI 物品管理器」
-- 界面四页零控制台错误，推荐区 12 张卡、搜索「找到 3.6K 个项目」、安装弹窗默认匹配当前版本
-- 端到端启动：离线账户真实进入主菜单（日志出现 `Backend library` / `OpenAL initialized`）
-- 打包产物：`win-unpacked` 与便携版均实测启动，`fedby://` 协议在 asar 内读取正常，`app:info` 返回 1.1.0
+- 界面四页零控制台错误，下载中心 926 个版本、七个子页类型标签与推荐各 12 张卡、安装弹窗匹配 11 个文件
+- 打包产物：`win-unpacked` 与便携版均实测启动，`fedby://` 协议在 asar 内读取正常，`app:info` 返回 1.2.0
 
 Java 自动下载的实测结果：
 

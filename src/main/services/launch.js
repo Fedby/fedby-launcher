@@ -55,11 +55,15 @@ function buildCommand(options) {
   const gameDir = dirs.game;
   ensureGameDirs(gameDir);
 
-  const clientJar = versions.paths(versionId).jar;
-  if (!fs.existsSync(clientJar)) throw new Error('客户端 jar 缺失，请在版本管理中重新安装该版本');
+  // Forge / NeoForge 会把打过补丁的完整客户端 jar 作为 :client 库给出，此时不能再把原版 jar 塞进 classpath
+  // （同一个 Minecraft.class 出现两次会让 ModuleFinder 冲突）；Fabric / Quilt 则依赖原版 jar。
+  const ownJar = versions.paths(versionId).jar;
+  const patchedClient = (versionJson.libraries || []).some(lib => /:client$/.test(String(lib.name || '')));
+  const clientJar = fs.existsSync(ownJar) ? ownJar : (patchedClient ? '' : versions.clientJar(versionId));
+  if (clientJar && !fs.existsSync(clientJar)) throw new Error('客户端 jar 缺失，请在版本管理中重新安装该版本');
 
   const { entries } = versions.classpath(versionJson);
-  if (!entries.includes(clientJar)) entries.push(clientJar);
+  if (clientJar && !entries.includes(clientJar)) entries.push(clientJar);
 
   const nativesDir = path.join(dirs.natives, versionId);
   fs.mkdirSync(nativesDir, { recursive: true });

@@ -7,6 +7,20 @@ const i18n = require('../i18n');
 const API = 'https://api.modrinth.com/v2';
 const SITE = 'https://modrinth.com';
 
+// 类型 → facet 分组：外层 AND，内层 OR。
+// 数据包 / 插件在 Modrinth 里本质是带特定 loader 标签的 mod，得额外收一道。
+const TYPE_FACETS = {
+  mod: [['project_type:mod']],
+  modpack: [['project_type:modpack']],
+  resourcepack: [['project_type:resourcepack']],
+  shader: [['project_type:shader']],
+  datapack: [['project_type:mod'], ['categories:datapack']],
+  plugin: [['project_type:mod'], [
+    'categories:paper', 'categories:bukkit', 'categories:spigot', 'categories:purpur',
+    'categories:folia', 'categories:velocity', 'categories:waterfall', 'categories:bungeecord', 'categories:sponge',
+  ]],
+};
+
 const RECOMMEND_SLUGS = [
   'sodium', 'iris', 'lithium', 'fabric-api', 'jei', 'jade',
   'appleskin', 'shulboxtooltip', 'sodium-extra', 'no-chat-reports',
@@ -37,10 +51,11 @@ function normalizeVersion(raw) {
 }
 
 async function search(options = {}) {
-  const { query = '', type = 'mod', gameVersion = '', loader = '', sort = 'downloads', limit = 24, offset = 0 } = options;
-  const facets = [[`project_type:${type}`]];
+  const { query = '', type = 'mod', gameVersion = '', loader = '', category = '', sort = 'downloads', limit = 24, offset = 0 } = options;
+  const facets = (TYPE_FACETS[type] || [[`project_type:${type}`]]).map(group => group.slice());
   if (gameVersion) facets.push([`versions:${gameVersion}`]);
   if (loader && loader !== 'all') facets.push([`categories:${loader}`]);
+  if (category) facets.push([`categories:${category}`]);
 
   const params = new URLSearchParams({
     limit: String(Math.min(Math.max(limit, 1), 60)),
@@ -83,7 +98,8 @@ async function versionById(versionId) {
   return normalizeVersion(raw);
 }
 
-async function recommend() {
+/** 人工挑选的一批常用模组，作为默认「推荐」 */
+async function curated() {
   const ids = encodeURIComponent(JSON.stringify(RECOMMEND_SLUGS));
   const list = await net.requestJson(`${API}/projects?ids=${ids}`);
   const hits = (Array.isArray(list) ? list : []).map(project => ({
@@ -106,4 +122,4 @@ async function recommend() {
   return hits;
 }
 
-module.exports = { name: 'modrinth', label: 'Modrinth', search, versions, versionById, recommend };
+module.exports = { name: 'modrinth', label: 'Modrinth', search, versions, versionById, curated };

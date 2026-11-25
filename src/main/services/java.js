@@ -99,12 +99,52 @@ async function scan() {
 }
 
 let scanCache = [];
+let scanning = null;
+const DISK_CACHE = path.join(dirs.data, 'java-cache.json');
+const CACHE_TTL = 12 * 60 * 60 * 1000;
 
-// 带缓存的扫描：启动时扫一次，设置页点「重新扫描」时传 force
+/** 上次扫描结果落盘：启动时直接返回，不必等 300ms 的探测 */
+function readDiskCache() {
+  try {
+    const raw = JSON.parse(fs.readFileSync(DISK_CACHE, 'utf-8'));
+    if (!raw || !Array.isArray(raw.list) || !raw.list.length) return null;
+    if (Date.now() - (raw.at || 0) > CACHE_TTL) return null;
+    const valid = raw.list.filter(item => item && item.path && fs.existsSync(item.path));
+    return valid.length ? valid : null;
+  } catch (_) { return null; }
+}
+
+function writeDiskCache(list) {
+  try { fs.writeFileSync(DISK_CACHE, JSON.stringify({ at: Date.now(), list }), 'utf-8'); } catch (_) { /* 忽略 */ }
+}
+
+/**
+ * 带缓存的扫描：先内存、再磁盘缓存（立刻返回），同时后台校准。
+ * 设置页点「重新扫描」或装完 Java 后传 force 走真实扫描。
+ */
 async function scanCached(force = false) {
-  if (!force && scanCache.length) return scanCache;
-  scanCache = await scan();
-  return scanCache;
+  if (!force) {
+    if (scanCache.length) return scanCache;
+    const cached = readDiskCache();
+    if (cached) {
+      scanCache = cached;
+      if (!scanning) {
+        scanning = scan()
+          .then(list => { scanCache = list; writeDiskCache(list); return list; })
+          .catch(() => cached)
+          .finally(() => { scanning = null; });
+      }
+      return cached;
+    }
+  }
+  if (scanning) {
+    await scanning;
+    if (!force) return scanCache;
+  }
+  scanning = scan()
+    .then(list => { scanCache = list; writeDiskCache(list); return list; })
+    .finally(() => { scanning = null; });
+  return scanning;
 }
 
 function cached() { return scanCache; }

@@ -1,17 +1,28 @@
 // 设置页
-import { $, esc } from '../lib/dom.js';
+import { $, esc, fmtTime } from '../lib/dom.js';
 import { call } from '../lib/ipc.js';
 import { icon } from '../lib/icons.js';
 import { pageHead, toast, toastOk, toastErr, confirm, busy, setStatus, empty } from '../lib/ui.js';
-import { state, saveSettings, loadRecommendRuntime, refreshJava, reportError } from '../store.js';
+import { state, saveSettings, loadRecommendRuntime, refreshJava, refreshSource, reportError } from '../store.js';
 import { rerender } from '../router.js';
 import { PRESET_COLORS, applyTheme } from '../lib/theme.js';
+import { checkForUpdate } from '../components/updater.js';
 
 function render(state) {
   const config = state.settings;
   const autoJava = config.autoJava !== false;
   const autoMemory = config.autoMemory !== false;
   const themeColor = /^#[0-9a-f]{6}$/i.test(config.themeColor || '') ? config.themeColor : '#4f6ef7';
+  const source = state.source;
+  const sourceMode = config.sourceMode || 'auto';
+  const ms = value => (value && value > 0 ? `${value} ms` : '不可达');
+  const sourceHint = !source
+    ? '正在读取下载源状态…'
+    : sourceMode === 'auto'
+      ? `当前走<b>${source.chosen === 'mirror' ? '镜像源' : '官方源'}</b>（官方 ${ms(source.officialMs)} · 镜像 ${ms(source.mirrorMs)}）${source.reason ? ' · ' + esc(source.reason) : ''}`
+      : sourceMode === 'mirror'
+        ? `固定使用镜像源（BMCLAPI：版本清单 / 依赖库 / 资源文件 / 加载器）· 官方 ${ms(source.officialMs)} / 镜像 ${ms(source.mirrorMs)}`
+        : `固定使用官方源（Mojang / Adoptium / Forge 官方地址）· 官方 ${ms(source.officialMs)} / 镜像 ${ms(source.mirrorMs)}`;
 
   return `
     ${pageHead('设置', '启动器全局选项，修改后点底部保存', `<button class="btn primary" id="save-settings">${icon('check', 14)} 保存设置</button>`)}
@@ -24,7 +35,9 @@ function render(state) {
           <label class="checkbox" style="margin-top:10px"><input type="checkbox" id="set-auto-memory"${autoMemory ? ' checked' : ''}> 自动分配内存（物理内存的 1/4，限制 2~8 GB）</label>
           <div class="hint-box" style="margin-top:10px">
             当前推荐：需要 Java ${esc(state.auto.requiredJava || 17)} ·
-            ${state.auto.satisfied
+            ${state.runtimeReady === false
+              ? '正在扫描本机 Java…'
+              : state.auto.satisfied
               ? `使用 ${esc(state.auto.javaDisplay || '扫描中…')}`
               : '<b>本机缺少该版本，启动时将自动下载</b>'} ·
             分配 ${state.auto.memoryMB || config.memoryMB || 4096} MB
@@ -117,7 +130,20 @@ function render(state) {
 
         <div class="card">
           <div class="card-head">${icon('download', 15)} 下载</div>
-          <div class="field"><label>并发下载数</label><input class="input" type="number" id="set-concurrency" min="1" max="32" value="${config.downloadConcurrency || 8}"></div>
+          <div class="field">
+            <label>下载源</label>
+            <div class="source-tabs" style="margin-bottom:0">
+              <button class="source-tab${sourceMode === 'auto' ? ' active' : ''}" data-source-mode="auto">自动择优</button>
+              <button class="source-tab${sourceMode === 'official' ? ' active' : ''}" data-source-mode="official">官方源</button>
+              <button class="source-tab${sourceMode === 'mirror' ? ' active' : ''}" data-source-mode="mirror">镜像源</button>
+            </div>
+          </div>
+          <div class="hint-box" id="source-hint" style="margin-top:10px">${sourceHint}</div>
+          <div class="row" style="margin-top:8px;gap:8px">
+            <button class="btn sm ghost" id="source-probe">${icon('refresh', 13)} 重新测速</button>
+            <span class="hint">自动模式按响应速度选，失败会自动回退另一边</span>
+          </div>
+          <div class="field" style="margin-top:14px"><label>并发下载数</label><input class="input" type="number" id="set-concurrency" min="1" max="32" value="${config.downloadConcurrency || 8}"></div>
           <div class="check-col">
             <label class="checkbox"><input type="checkbox" id="set-assets"${config.autoDownloadAssets !== false ? ' checked' : ''}> 自动补全缺失的资源文件</label>
             <label class="checkbox"><input type="checkbox" id="set-translate"${config.translateDescriptions !== false ? ' checked' : ''}> 使用中文社区数据（MC 百科 / MCIM / 麦块）</label>
@@ -130,13 +156,17 @@ function render(state) {
 
         <div class="card">
           <div class="card-head">${icon('info', 15)} 关于</div>
-          <div class="kv"><span>启动器版本</span><b>${esc(state.appInfo.version || '2.0.0')}</b></div>
+          <div class="kv"><span>启动器版本</span><b>v${esc(state.appInfo.version || '2.0.0')}</b></div>
           <div class="kv"><span>Electron / Chrome</span><b>${esc(state.appInfo.electron || '-')} / ${esc(state.appInfo.chrome || '-')}</b></div>
           <div class="kv"><span>数据目录</span><b class="mono" style="max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(state.appInfo.dataDir || '')}">${esc(state.appInfo.dataDir || '-')}</b></div>
           <div class="row" style="margin-top:12px;gap:8px">
-            <button class="btn sm" id="open-data">${icon('folder', 13)} 数据目录</button>
-            <button class="btn sm" id="open-logs">${icon('tag', 13)} 日志</button>
+            <button class="btn sm" id="check-update">${icon('refresh', 13)} 检查更新</button>
+            <button class="btn sm ghost" id="open-release">${icon('globe', 13)} 发布页</button>
+            <button class="btn sm ghost" id="open-data">${icon('folder', 13)} 数据目录</button>
+            <button class="btn sm ghost" id="open-logs">${icon('tag', 13)} 日志</button>
           </div>
+          <label class="checkbox" style="margin-top:12px"><input type="checkbox" id="set-auto-update"${config.autoCheckUpdate !== false ? ' checked' : ''}> 启动时检查新版本（发现后弹窗询问，不会自动安装）</label>
+          <div class="hint-box" id="update-hint" style="margin-top:9px">${config.skippedVersion ? `已跳过 v${esc(config.skippedVersion)}，更新到更新版本时会再提醒` : '新版本从 GitHub Releases 获取，可自己选安装版或便携版'}</div>
         </div>
 
         <div class="card">
@@ -196,6 +226,31 @@ async function mount(root) {
     restore();
   });
 
+  root.querySelectorAll('[data-source-mode]').forEach(button => {
+    button.addEventListener('click', async () => {
+      const value = button.dataset.sourceMode;
+      if (value === (state.settings.sourceMode || 'auto')) return;
+      await saveSettings({ sourceMode: value });
+      await refreshSource(false).catch(() => {});
+      rerender();
+      toastOk(value === 'auto' ? '已切换为自动择优' : value === 'mirror' ? '已固定使用镜像源' : '已固定使用官方源');
+    });
+  });
+
+  const probeButton = $('#source-probe');
+  if (probeButton) probeButton.addEventListener('click', async () => {
+    const restore = busy(probeButton, '测速中…');
+    setStatus('正在测速下载源…', true);
+    try {
+      await refreshSource(true);
+      rerender();
+      const source = state.source;
+      toastOk(`官方 ${source.officialMs > 0 ? source.officialMs + ' ms' : '不可达'} · 镜像 ${source.mirrorMs > 0 ? source.mirrorMs + ' ms' : '不可达'}`);
+    } catch (error) { reportError('测速失败', error); }
+    setStatus('就绪');
+    restore();
+  });
+
   $('#rescan-java').addEventListener('click', async () => {
     setStatus('扫描 Java…', true);
     try {
@@ -246,6 +301,23 @@ async function mount(root) {
     });
   });
 
+  const checkButton = $('#check-update');
+  if (checkButton) checkButton.addEventListener('click', async () => {
+    const restore = busy(checkButton, '检查中…');
+    try {
+      const info = await checkForUpdate({ manual: true });
+      const hint = $('#update-hint');
+      if (!info || !hint) return;
+      if (info.error) { hint.innerHTML = `检查失败：${esc(info.error)}`; return; }
+      hint.innerHTML = info.newer
+        ? `发现新版本 <b>v${esc(info.version)}</b>${info.publishedAt ? ' · ' + esc(fmtTime(info.publishedAt)) : ''}，已弹窗询问`
+        : `已是最新版本 v${esc(info.current)}${info.publishedAt ? ' · 最近发布 ' + esc(fmtTime(info.publishedAt)) : ''}`;
+    } finally { restore(); }
+  });
+
+  const releaseButton = $('#open-release');
+  if (releaseButton) releaseButton.addEventListener('click', () => call('update.open').catch(error => toastErr(error.message)));
+
   $('#open-data').addEventListener('click', () => call('app.openDir', 'data').catch(error => toastErr(error.message)));
   $('#open-logs').addEventListener('click', () => call('app.openDir', 'logs').catch(error => toastErr(error.message)));
 
@@ -283,6 +355,7 @@ async function mount(root) {
         curseforgeKey: $('#set-cf-key').value.trim(),
         javaPath: $('#set-java-path').value.trim(),
         themeColor: $('#color-picker').value,
+        autoCheckUpdate: $('#set-auto-update') ? $('#set-auto-update').checked : true,
       };
       await saveSettings(patch);
       await loadRecommendRuntime();

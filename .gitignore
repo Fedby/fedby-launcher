@@ -1,6 +1,8 @@
 # 依赖与打包产物
 node_modules/
 dist/
+dist-*/
+out-*/
 
 # 运行时与临时文件
 *.log

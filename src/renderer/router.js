@@ -16,6 +16,8 @@ export const pageList = () => [...pages.values()];
 export async function navigate(id) {
   const page = pages.get(id);
   if (!page) return;
+  const samePage = id === currentId;
+  const keepScroll = samePage ? document.getElementById('view')?.scrollTop || 0 : 0;
   currentId = id;
   state.page = id;
 
@@ -36,7 +38,7 @@ export async function navigate(id) {
     setStatus('就绪');
     return;
   }
-  view.scrollTop = 0;
+  view.scrollTop = keepScroll;
   view.classList.remove('page-enter');
   void view.offsetWidth;
   view.classList.add('page-enter');

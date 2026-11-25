@@ -117,6 +117,9 @@ if (!gotLock) {
   app.whenReady().then(() => {
     registerProtocol();
     session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
+    // 预热：窗口先出来，Java 扫描与下载源测速在后台跑，界面要数据时已经热了
+    require('./services/java').scanCached().catch(() => {});
+    require('./services/mirror').probe().catch(() => {});
     createWindow();
   });
 
